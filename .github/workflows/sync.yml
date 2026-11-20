@@ -47,7 +47,7 @@ jobs:
         uses: actions/configure-pages@v5
       - name: 公開ファイルをまとめる
         if: steps.sync.outputs.skipped != 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: site
       - name: 公開
