@@ -41,13 +41,11 @@ COLOR_NAMES = {
     "grey": "#D9DEE8",
 }
 
-
 def set_action_output(name: str, value: str):
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output:
             output.write(f"{name}={value}\n")
-
 
 class FetchError(RuntimeError):
     """A temporary or external error while downloading the published CSV."""
@@ -55,7 +53,6 @@ class FetchError(RuntimeError):
     def __init__(self, message: str, *, transient: bool = True):
         super().__init__(message)
         self.transient = transient
-
 
 def fetch_text(url: str) -> str:
     last_error = None
@@ -76,24 +73,20 @@ def fetch_text(url: str) -> str:
             last_error = exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             last_error = exc
-
         if attempt < FETCH_ATTEMPTS:
             delay = RETRY_DELAYS_SECONDS[min(attempt - 1, len(RETRY_DELAYS_SECONDS) - 1)]
             print(f"Google Sheetsの取得に失敗しました。{delay}秒後に再試行します（{attempt}/{FETCH_ATTEMPTS}）")
             time.sleep(delay)
-
     raise FetchError(
         f"Google Sheetsの取得が{FETCH_ATTEMPTS}回連続で失敗しました。"
         f"一時的な通信エラーの可能性があります: {last_error}"
     ) from last_error
-
 
 def read_field(row: dict, *names: str) -> str:
     for name in names:
         if name in row and row[name] is not None:
             return str(row[name]).strip()
     return ""
-
 
 def normalize_color(value: str) -> str:
     value = value.strip()
@@ -111,12 +104,28 @@ def normalize_color(value: str) -> str:
         return value.upper()
     return "#AFCBFF"
 
-
 def normalize_rows(csv_text: str):
+    # The published sheet must be fetched as CSV. A /pubhtml URL (or a
+    # sharing/configuration mistake) returns HTML, which csv.DictReader
+    # would otherwise parse silently into zero notices. Treat that as a
+    # configuration error, not a transient failure, so the job fails
+    # visibly instead of publishing an empty board.
+    stripped = csv_text.lstrip("\ufeff \t\r\n")
+    lowered = stripped.lower()
+    if lowered.startswith("<!doctype") or lowered.startswith("<html"):
+        raise FetchError(
+            "Google SheetsからCSVではなくHTMLが返されました。config.json の sheet_csv_url に公開CSV URL（.../pub?output=csv）を設定してください。",
+            transient=False,
+        )
     reader = csv.DictReader(io.StringIO(csv_text))
     if not reader.fieldnames:
         raise RuntimeError("CSVにヘッダー行がありません。title, body, date, color の列を用意してください。")
-
+    header_names = {name.strip().lower() for name in reader.fieldnames if name}
+    if "title" not in header_names and "タイトル" not in header_names and "件名" not in header_names:
+        raise FetchError(
+            "CSVのヘッダーに title 列がありません。Google Sheetsの公開CSV URLと列名を確認してください。",
+            transient=False,
+        )
     notices = []
     max_items = int(CONFIG.get("max_items", 0) or 0)
     for row in reader:
@@ -124,12 +133,10 @@ def normalize_rows(csv_text: str):
         body = read_field(row, "body", "本文", "内容")
         date = read_field(row, "date", "日付", "日時")
         color = normalize_color(read_field(row, "color", "色", "カラー"))
-
         if not title and not body:
             continue
         if not title:
             title = "お知らせ"
-
         notices.append({
             "title": html.unescape(title),
             "body": html.unescape(body),
@@ -140,12 +147,10 @@ def normalize_rows(csv_text: str):
             break
     return notices
 
-
 def main():
     owner, repo = os.environ.get("GITHUB_REPOSITORY", "YOUR_NAME/YOUR_REPO").split("/", 1)
     base_url = f"https://{owner}.github.io/{repo}"
     sheet_csv_url = str(CONFIG.get("sheet_csv_url", "")).strip()
-
     if not sheet_csv_url:
         set_action_output("skipped", "true")
         print("sheet_csv_url が未設定のため、同期と公開をスキップしました。")
@@ -153,7 +158,6 @@ def main():
         return
     if not sheet_csv_url.startswith("https://"):
         raise RuntimeError("config.json の sheet_csv_url には https:// で始まる公開CSV URLを設定してください。")
-
     try:
         csv_text = fetch_text(sheet_csv_url)
     except FetchError as exc:
@@ -165,7 +169,6 @@ def main():
             print(f"一時的にGoogle Sheetsを取得できないため、公開をスキップして前回のPagesデータを維持します: {exc}")
             return
         raise
-
     notices = normalize_rows(csv_text)
     set_action_output("skipped", "false")
     SITE.mkdir(parents=True, exist_ok=True)
@@ -181,7 +184,6 @@ def main():
     )
     print(f"同期完了: {len(notices)} 件")
     print(f"Unityへ貼るURL: {base_url}")
-
 
 if __name__ == "__main__":
     main()
