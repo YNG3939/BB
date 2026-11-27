@@ -1,8 +1,12 @@
 {
   "sheet_csv_url": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRWw2Kww6abCzl3aUKPQpi3LknN6vLbVyeEPB_-OgxPY_J1qaxIlSWX4c-SYfLE8MPhgww4BH7AnehF/pub?output=csv",
-  "max_items": 8
+  "max_items": 8,
+  "pinned_notices": [
+    {
+      "title": "Ver.3.3 更新のお知らせ",
+      "body": "・Liteモードの軽量化を強化しました。動画や追加ギミックなどを停止します。ミラーとペンはLite中も使えます。\n・食べ物・飲み物・ポテチは2FのBar_FOODスイッチで切り替えられます。\n・別棟（prv）滞在中はメイン側の動画と対象ギミックを停止するようにしました。\n・Quest版の明るさの差を修正しました。\n・全体の明るさを保ちながら照明を高品質で再ベイクし、足元の間接照明を暖かい色に調整しました。\n・Windows・Android・iOS版を更新しました。",
+      "date": "2026-11-27",
+      "color": "#FFD6E7"
+    }
+  ]
 }
-
-
-
-
