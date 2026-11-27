@@ -147,6 +147,35 @@ def normalize_rows(csv_text: str):
             break
     return notices
 
+def prepend_configured_notices(notices):
+    """Keep configured announcements across sheet syncs; sheet edits take priority."""
+    pinned = CONFIG.get("pinned_notices", [])
+    if not pinned:
+        return notices
+    merged = []
+    seen = set()
+    sheet_by_title = {notice["title"]: notice for notice in notices}
+    for item in pinned:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title", "")).strip()
+        if not title or title in seen:
+            continue
+        notice = sheet_by_title.get(title) or {
+            "title": title,
+            "body": str(item.get("body", "")),
+            "date": str(item.get("date", "")),
+            "color": normalize_color(str(item.get("color", ""))),
+        }
+        merged.append(notice)
+        seen.add(title)
+    for notice in notices:
+        if notice["title"] not in seen:
+            merged.append(notice)
+            seen.add(notice["title"])
+    limit = int(CONFIG.get("max_items", 0) or 0)
+    return merged[:limit] if limit > 0 else merged
+
 def main():
     owner, repo = os.environ.get("GITHUB_REPOSITORY", "YOUR_NAME/YOUR_REPO").split("/", 1)
     base_url = f"https://{owner}.github.io/{repo}"
@@ -169,7 +198,7 @@ def main():
             print(f"一時的にGoogle Sheetsを取得できないため、公開をスキップして前回のPagesデータを維持します: {exc}")
             return
         raise
-    notices = normalize_rows(csv_text)
+    notices = prepend_configured_notices(normalize_rows(csv_text))
     set_action_output("skipped", "false")
     SITE.mkdir(parents=True, exist_ok=True)
     (SITE / "board.json").write_text(json.dumps({"notices": notices}, ensure_ascii=False, indent=2), encoding="utf-8")
